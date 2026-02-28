@@ -172,7 +172,6 @@ the UI of Brave the user gets warned about this, since we can not warn the user
 in SearXNG, the spellchecking is disabled by default.
 """
 
-send_accept_language_header = True
 paging = False
 """Brave only supports paging in :py:obj:`brave_category` ``search`` (UI
 category All) and in the goggles category."""
@@ -214,6 +213,7 @@ def request(query: str, params: dict[str, t.Any]) -> None:
     if brave_category == "goggles":
         args["goggles_id"] = Goggles
 
+    params["headers"]["Accept-Encoding"] = "gzip, deflate"
     params["url"] = f"{base_url}{brave_category}?{urlencode(args)}"
     logger.debug("url %s", params["url"])
 
@@ -336,6 +336,9 @@ def _parse_search(resp: SXNG_Response) -> EngineResults:
             if iframe_src:
                 item["iframe_src"] = iframe_src
                 item["template"] = "videos.html"
+
+    for suggestion in eval_xpath_list(dom, "//a[contains(@class, 'related-query')]"):
+        res.append(res.types.LegacyResult({'suggestion': extract_text(suggestion)}))
 
     return res
 

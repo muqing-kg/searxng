@@ -25,7 +25,7 @@ from lxml.etree import XPath, XPathError, XPathSyntaxError
 from lxml.etree import ElementBase, _Element  # pyright: ignore[reportPrivateUsage]
 
 from searx import settings
-from searx.data import USER_AGENTS, data_dir
+from searx.data import USER_AGENTS, data_dir, gsa_useragents_loader
 from searx.version import VERSION_TAG
 from searx.sxng_locales import sxng_locales
 from searx.exceptions import SearxXPathSyntaxException, SearxEngineXPathException
@@ -90,6 +90,14 @@ def gen_useragent(os_string: str | None = None) -> str:
         os=os_string or choice(USER_AGENTS['os']),
         version=choice(USER_AGENTS['versions']),
     )
+
+
+def gen_gsa_useragent() -> str:
+    """Return a random GSA User Agent suitable for Google
+
+    See searx/data/gsa_useragents.txt
+    """
+    return choice(gsa_useragents_loader())
 
 
 class HTMLTextExtractor(HTMLParser):
@@ -386,7 +394,7 @@ def convert_str_to_int(number_str: str) -> int:
     return 0
 
 
-def extr(txt: str, begin: str, end: str, default: str = ""):
+def extr(txt: str, begin: str, end: str, default: str = "") -> str:
     """Extract the string between ``begin`` and ``end`` from ``txt``
 
     :param txt:     String to search in
