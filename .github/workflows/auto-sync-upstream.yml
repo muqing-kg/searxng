@@ -1,0 +1,132 @@
+---
+name: Auto Sync Upstream
+
+# yamllint disable-line rule:truthy
+on:
+  schedule:
+    # 每天 UTC 00:00 (北京时间 08:00) 自动检查上游更新
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+    # 支持手动触发
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  sync-upstream:
+    name: Sync Upstream
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add Upstream Remote
+        run: |
+          git remote add upstream https://github.com/searxng/searxng.git || true
+          git fetch upstream master
+
+      - name: Check for Updates
+        id: check
+        run: |
+          LOCAL_COMMIT=$(git rev-parse HEAD)
+          UPSTREAM_COMMIT=$(git rev-parse upstream/master)
+
+          echo "local_commit=$LOCAL_COMMIT" >> $GITHUB_OUTPUT
+          echo "upstream_commit=$UPSTREAM_COMMIT" >> $GITHUB_OUTPUT
+
+          if git merge-base --is-ancestor upstream/master HEAD; then
+            echo "has_updates=false" >> $GITHUB_OUTPUT
+            echo "✅ Already up to date with upstream"
+          else
+            echo "has_updates=true" >> $GITHUB_OUTPUT
+            BEHIND_COUNT=$(git rev-list --count HEAD..upstream/master)
+            echo "behind_count=$BEHIND_COUNT" >> $GITHUB_OUTPUT
+            echo "📦 Behind upstream by $BEHIND_COUNT commits"
+          fi
+
+      - name: Merge Upstream Changes
+        if: steps.check.outputs.has_updates == 'true'
+        run: |
+          # 显示本地修改
+          echo "Local changes to preserve:"
+          git log --oneline --no-merges master --not upstream/master || true
+
+          # 尝试合并上游更新
+          if git merge upstream/master --no-edit -m "chore: sync upstream $(date +'%Y-%m-%d')"; then
+            echo "✅ Merge successful"
+          else
+            echo "⚠️ Merge conflicts detected, attempting auto-resolution"
+
+            # 对于冲突文件，优先保留本地修改
+            git status --porcelain | grep '^UU' | awk '{print $2}' | while read file; do
+              echo "Resolving conflict in: $file"
+              # 如果是配置文件或图标，保留本地版本
+              if [[ "$file" == *"settings.yml"* ]] || \
+                 [[ "$file" == *"favicon"* ]] || \
+                 [[ "$file" == *"searxng.png"* ]] || \
+                 [[ "$file" == *"searxng.svg"* ]]; then
+                echo "  → Keeping local version"
+                git checkout --ours "$file"
+                git add "$file"
+              else
+                # 其他文件使用上游版本
+                echo "  → Using upstream version"
+                git checkout --theirs "$file"
+                git add "$file"
+              fi
+            done
+
+            # 检查是否还有未解决的冲突
+            if git status --porcelain | grep -q '^UU'; then
+              echo "❌ Still have unresolved conflicts"
+              git status
+              exit 1
+            fi
+
+            # 完成合并
+            git commit --no-edit -m "chore: sync upstream with conflict resolution $(date +'%Y-%m-%d')"
+            echo "✅ Conflicts resolved and merge completed"
+          fi
+
+      - name: Push Changes
+        if: steps.check.outputs.has_updates == 'true'
+        run: |
+          git push origin master
+
+      - name: Trigger Container Build
+        if: steps.check.outputs.has_updates == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'build-custom-image.yml',
+              ref: 'master'
+            });
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Sync Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.check.outputs.has_updates }}" == "true" ]; then
+            echo "✅ Synced ${{ steps.check.outputs.behind_count }} commits from upstream" >> $GITHUB_STEP_SUMMARY
+            echo "🚀 Container build triggered" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ Already up to date with upstream" >> $GITHUB_STEP_SUMMARY
+          fi

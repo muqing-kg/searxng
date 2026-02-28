@@ -1,0 +1,214 @@
+---
+name: Build Custom Image
+
+# yamllint disable-line rule:truthy
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+    paths-ignore:
+      - '*.md'
+      - '.github/workflows/auto-sync-upstream.yml'
+      - 'docs/**'
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-and-push:
+    name: Build & Push (${{ matrix.platform }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - linux/amd64
+          - linux/arm64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate Version Info
+        id: version
+        run: |
+          GIT_SHA=$(git rev-parse --short HEAD)
+          GIT_DATE=$(git show -s --date='format:%Y.%m.%d' --format='%cd')
+          GIT_DATE_CLEAN=$(echo "$GIT_DATE" | sed 's/\.0/\./g')
+
+          echo "sha=$GIT_SHA" >> $GITHUB_OUTPUT
+          echo "date=$GIT_DATE_CLEAN" >> $GITHUB_OUTPUT
+          echo "version=${GIT_DATE_CLEAN}+${GIT_SHA}" >> $GITHUB_OUTPUT
+
+          PLATFORM="${{ matrix.platform }}"
+          ARCH="${PLATFORM#linux/}"
+          echo "arch=$ARCH" >> $GITHUB_OUTPUT
+
+      - name: Generate version_frozen.py
+        run: |
+          GIT_SHA="${{ steps.version.outputs.sha }}"
+          GIT_DATE="${{ steps.version.outputs.date }}"
+          VERSION="${{ steps.version.outputs.version }}"
+          DOCKER_TAG="${GIT_DATE}-${GIT_SHA}"
+          GIT_URL="https://github.com/${{ github.repository }}"
+          GIT_BRANCH="${{ github.ref_name }}"
+
+          cat > searx/version_frozen.py << 'EOF'
+          # SPDX-License-Identifier: AGPL-3.0-or-later
+          # pylint: disable=missing-module-docstring
+          # this file is generated automatically by CI
+
+          VERSION_STRING = "VERSION_PLACEHOLDER"
+          VERSION_TAG = "VERSION_PLACEHOLDER"
+          DOCKER_TAG = "DOCKER_TAG_PLACEHOLDER"
+          GIT_URL = "GIT_URL_PLACEHOLDER"
+          GIT_BRANCH = "GIT_BRANCH_PLACEHOLDER"
+          EOF
+
+          sed -i "s|VERSION_PLACEHOLDER|${VERSION}|g" searx/version_frozen.py
+          sed -i "s|DOCKER_TAG_PLACEHOLDER|${DOCKER_TAG}|g" searx/version_frozen.py
+          sed -i "s|GIT_URL_PLACEHOLDER|${GIT_URL}|g" searx/version_frozen.py
+          sed -i "s|GIT_BRANCH_PLACEHOLDER|${GIT_BRANCH}|g" searx/version_frozen.py
+
+          echo "Generated version_frozen.py:"
+          cat searx/version_frozen.py
+
+      - name: Docker Meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest-${{ steps.version.outputs.arch }}
+            type=raw,value=${{ steps.version.outputs.date }}-${{ steps.version.outputs.arch }}
+
+      - name: Build and Push
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: ${{ matrix.platform }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.platform }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.platform }}
+          build-args: |
+            SEARXNG_GIT_VERSION=${{ steps.version.outputs.sha }}
+            LABEL_DATE=${{ steps.version.outputs.date }}
+            VERSION=${{ steps.version.outputs.version }}
+            VCS_URL=https://github.com/${{ github.repository }}
+            VCS_REVISION=${{ github.sha }}
+            CREATED=${{ steps.meta.outputs.created }}
+
+      - name: Export Digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload Digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ steps.version.outputs.arch }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  create-manifest:
+    name: Create Multi-Arch Manifest
+    runs-on: ubuntu-24.04
+    needs: build-and-push
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download Digests
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digests-*
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate Tags
+        id: tags
+        run: |
+          GIT_SHA=$(git rev-parse --short HEAD)
+          GIT_DATE=$(git show -s --date='format:%Y.%m.%d' --format='%cd')
+          GIT_DATE_CLEAN=$(echo "$GIT_DATE" | sed 's/\.0/\./g')
+
+          echo "sha=$GIT_SHA" >> $GITHUB_OUTPUT
+          echo "date=$GIT_DATE_CLEAN" >> $GITHUB_OUTPUT
+
+      - name: Create Manifest List and Push
+        working-directory: /tmp/digests
+        run: |
+          docker buildx imagetools create \
+            -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
+            -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tags.outputs.date }} \
+            -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tags.outputs.sha }} \
+            $(printf '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@sha256:%s ' *)
+
+      - name: Inspect Image
+        run: |
+          docker buildx imagetools inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+
+      - name: Summary
+        run: |
+          echo "## 🐳 Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Registry:** \`${{ env.REGISTRY }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Image:** \`${{ env.IMAGE_NAME }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Tags:**" >> $GITHUB_STEP_SUMMARY
+          echo "- \`latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ steps.tags.outputs.date }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ steps.tags.outputs.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Platforms:** \`linux/amd64\`, \`linux/arm64\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Pull Command" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
