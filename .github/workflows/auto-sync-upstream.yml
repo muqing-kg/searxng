@@ -16,6 +16,7 @@ concurrency:
 permissions:
   contents: write
   packages: write
+  actions: write
 
 jobs:
   sync-upstream:
@@ -74,7 +75,6 @@ jobs:
             # 对于冲突文件，优先保留本地修改
             git status --porcelain | grep '^UU' | awk '{print $2}' | while read file; do
               echo "Resolving conflict in: $file"
-              # 如果是配置文件或图标，保留本地版本
               if [[ "$file" == *"settings.yml"* ]] || \
                  [[ "$file" == *"favicon"* ]] || \
                  [[ "$file" == *"searxng.png"* ]] || \
@@ -83,7 +83,6 @@ jobs:
                 git checkout --ours "$file"
                 git add "$file"
               else
-                # 其他文件使用上游版本
                 echo "  → Using upstream version"
                 git checkout --theirs "$file"
                 git add "$file"
@@ -97,9 +96,30 @@ jobs:
               exit 1
             fi
 
-            # 完成合并
             git commit --no-edit -m "chore: sync upstream with conflict resolution $(date +'%Y-%m-%d')"
             echo "✅ Conflicts resolved and merge completed"
+          fi
+
+      - name: Restore Local Workflows
+        if: steps.check.outputs.has_updates == 'true'
+        run: |
+          # GITHUB_TOKEN 无法推送包含 .github/workflows 变更的提交
+          # 将上游的 workflow 变更还原为合并前的本地版本
+          MERGE_BASE=$(git rev-parse HEAD~1)
+
+          # 检查 .github/workflows 是否有变更
+          if git diff --name-only "$MERGE_BASE" HEAD -- .github/workflows/ | grep -q .; then
+            echo "⚠️ Upstream changed workflow files, restoring local versions..."
+            git diff --name-only "$MERGE_BASE" HEAD -- .github/workflows/ | while read file; do
+              echo "  Restoring: $file"
+            done
+
+            # 还原 .github/workflows 到合并前的状态
+            git checkout "$MERGE_BASE" -- .github/workflows/
+            git commit -m "chore: preserve local workflow files after upstream sync"
+            echo "✅ Local workflows restored"
+          else
+            echo "✅ No workflow changes from upstream"
           fi
 
       - name: Push Changes
