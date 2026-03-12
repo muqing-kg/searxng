@@ -3,8 +3,8 @@
 engine providing access to a variety of book resources (also via IPFS), created
 by a team of anonymous archivists (AnnaArchivist_).
 
-.. _Anna's Archive: https://annas-archive.li/
-.. _AnnaArchivist: https://software.annas-archive.li/AnnaArchivist/annas-archive
+.. _Anna's Archive: https://annas-archive.gl/
+.. _AnnaArchivist: https://software.annas-archive.gl/AnnaArchivist/annas-archive
 
 Configuration
 =============
@@ -53,7 +53,7 @@ if t.TYPE_CHECKING:
 
 # about
 about: dict[str, t.Any] = {
-    "website": "https://annas-archive.li/",
+    "website": "https://annas-archive.gl/",
     "wikidata_id": "Q115288326",
     "official_api_documentation": None,
     "use_official_api": False,
@@ -250,9 +250,10 @@ def fetch_traits(engine_traits: EngineTraits) -> None:
     engine_traits.custom["ext"] = []
     engine_traits.custom["sort"] = []
 
-    resp = get(_get_base_url_choice() + "/search")
+    resp = get(_get_base_url_choice() + "/search", timeout=5)
     if not resp.ok:
-        raise RuntimeError("Response from Anna's search page is not OK.")
+        raise RuntimeError("Response from Anna's Archive is not OK.")
+
     dom = html.fromstring(resp.text)
 
     # supported language codes
