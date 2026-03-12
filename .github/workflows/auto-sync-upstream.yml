@@ -73,7 +73,9 @@ jobs:
             echo "⚠️ Merge conflicts detected, attempting auto-resolution"
 
             # 对于冲突文件，优先保留本地修改
-            while IFS= read -r file; do
+            mapfile -t conflict_files < <(git diff --name-only --diff-filter=U)
+
+            for file in "${conflict_files[@]}"; do
               echo "Resolving conflict in: $file"
 
               if [[ "$file" == *"settings.yml"* ]] || \
@@ -96,7 +98,7 @@ jobs:
                   git rm --force -- "$file"
                 fi
               fi
-            done < <(git diff --name-only --diff-filter=U)
+            done
 
             # 检查是否还有未解决的冲突
             if git diff --name-only --diff-filter=U | grep -q .; then
