@@ -130,7 +130,7 @@ jobs:
           body: |
             [l10n] update translations from Weblate
           labels: |
-            area:i18n
+            translation
 
       - name: Display information
         run: |
