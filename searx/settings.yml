@@ -1131,6 +1131,22 @@ engines:
     shortcut: hn
     disabled: true
 
+  - name: heexy
+    engine: heexy
+    categories: general
+    heexy_categ: web
+    shortcut: he
+    disabled: true
+    inactive: true
+
+  - name: heexy images
+    engine: heexy
+    categories: images
+    heexy_categ: image
+    shortcut: hei
+    disabled: true
+    inactive: true
+
   - name: hex
     engine: hex
     shortcut: hex
@@ -1960,6 +1976,14 @@ engines:
   #       - ...
   #   disabled: true
 
+  - name: seekninja
+    engine: seekninja
+    shortcut: sen
+    # very slow due to its server-side events architecture
+    timeout: 10
+    disabled: true
+    inactive: true
+
   - name: semantic scholar
     engine: semantic_scholar
     shortcut: se
@@ -2053,6 +2077,22 @@ engines:
     use_source_url: true
     shortcut: ts
     disabled: true
+
+  - name: tiger
+    engine: tiger
+    categories: general
+    tiger_category: Websuche
+    shortcut: tig
+    disabled: true
+    inactive: true
+
+  - name: tiger news
+    engine: tiger
+    categories: news
+    tiger_category: News
+    shortcut: tign
+    disabled: true
+    inactive: true
 
   - name: tmdb
     engine: xpath
