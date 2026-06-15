@@ -491,6 +491,22 @@ engines:
     engine: arxiv
     shortcut: arx
 
+  - name: ayo
+    engine: xpath
+    shortcut: ayo
+    search_url: https://search.ayo.de/search?q={query}
+    results_xpath: //div[contains(@class, 'search-result')]/div
+    url_xpath: .//a/@href
+    title_xpath: .//h3
+    content_xpath: .//p
+    suggestion_xpath: .//a[starts-with(@href, "https://search.ayo.de")]
+    disabled: true
+    about:
+      website: https://serach.ayo.de
+      use_official_api: false
+      require_api_key: false
+      results: HTML
+
   - name: azure
     engine: azure
     shortcut: az
@@ -2313,6 +2329,36 @@ engines:
     shortcut: tm
     disabled: true
 
+  - name: tonline
+    engine: tonline
+    shortcut: tol
+    disabled: true
+    inactive: true
+
+  - name: tonline images
+    engine: tonline
+    categories: images
+    tonline_categ: images
+    shortcut: toli
+    disabled: true
+    inactive: true
+
+  - name: tonline videos
+    engine: tonline
+    categories: videos
+    tonline_categ: videos
+    shortcut: tolv
+    disabled: true
+    inactive: true
+
+  - name: tonline news
+    engine: tonline
+    categories: news
+    tonline_categ: news
+    shortcut: toln
+    disabled: true
+    inactive: true
+
   # Requires Tor
   - name: torch
     engine: xpath
@@ -2789,6 +2835,49 @@ engines:
     categories: images
     shortcut: rehi
     disabled: true
+
+  - name: searchzee
+    engine: json_engine
+    search_url: https://searchzee.com/api/search?q={query}&type=web&offset={pageno}
+    paging: true
+    first_page_num: 0
+    results_query: results
+    url_query: url
+    title_query: title
+    content_query: summary
+    content_html_to_text: true
+    categories: general
+    shortcut: sz
+    disabled: true
+    inactive: true
+    about:
+      website: https://searchzee.com
+      use_official_api: false
+      require_api_key: false
+      results: JSON
+
+  - name: searchzee news
+    engine: json_engine
+    search_url: https://searchzee.com/api/search?q={query}&type=news&offset={pageno}{time_range}
+    paging: true
+    first_page_num: 0
+    time_range_support: true
+    time_range_url: "&freshness={time_range_val}"
+    time_range_map:
+      day: pd
+      week: pw
+      month: pm
+      year: py
+    results_query: results
+    url_query: url
+    title_query: title
+    content_query: summary
+    thumbnail_query: thumbnail
+    content_html_to_text: true
+    categories: news
+    shortcut: sznw
+    disabled: true
+    inactive: true
 
   - name: swisscows
     engine: swisscows
