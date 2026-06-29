@@ -32,32 +32,36 @@ jobs:
 
     steps:
       - name: Setup Python
-        uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548  # v6.1.0
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
         with:
           python-version: "${{ env.PYTHON_VERSION }}"
 
       - name: Checkout
-        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3  # v6.0.0
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
         with:
           persist-credentials: "false"
           fetch-depth: "0"
 
       - name: Setup cache Python
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
+        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8  # v6.0.0
         with:
           key: "python-${{ env.PYTHON_VERSION }}-${{ runner.arch }}-${{ hashFiles('./requirements*.txt') }}"
-          restore-keys: "python-${{ env.PYTHON_VERSION }}-${{ runner.arch }}-"
+          restore-keys: |
+            python-${{ env.PYTHON_VERSION }}-${{ runner.arch }}-
           path: "./local/"
+
+      - name: Setup dependencies
+        run: sudo ./utils/searxng.sh install buildhost
 
       - name: Setup venv
         run: make V=1 install
 
       - name: Build documentation
-        run: make V=1 docs.clean docs.html
+        run: make V=1 docs.html
 
       - if: github.ref_name == 'master'
         name: Release
-        uses: JamesIves/github-pages-deploy-action@4a3abc783e1a24aeb44c16e869ad83caf6b4cc23  # v4.7.4
+        uses: JamesIves/github-pages-deploy-action@d92aa235d04922e8f08b40ce78cc5442fcfbfa2f  # v4.8.0
         with:
           folder: "dist/docs"
           branch: "gh-pages"
