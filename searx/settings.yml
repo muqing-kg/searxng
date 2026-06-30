@@ -1585,6 +1585,11 @@ engines:
     disabled: true
     inactive: true
 
+  - name: magnific
+    engine: magnific
+    shortcut: mag
+    disabled: true
+
   - name: marginalia
     engine: marginalia
     shortcut: mar
@@ -1856,6 +1861,11 @@ engines:
   - name: photon
     engine: photon
     shortcut: ph
+
+  - name: picjumbo
+    engine: picjumbo
+    shortcut: pj
+    disabled: true
 
   - name: pinterest
     engine: pinterest
@@ -2165,6 +2175,11 @@ engines:
     engine: sepiasearch
     shortcut: sep
 
+  - name: shopify stock
+    engine: shopify_stock
+    shortcut: shs
+    disabled: true
+
   - name: sogou
     engine: sogou
     shortcut: sogou
@@ -2194,6 +2209,11 @@ engines:
     shortcut: st
     api_site: 'stackoverflow'
     categories: [it, q&a]
+
+  - name: stocksnap
+    engine: stocksnap
+    shortcut: sto
+    disabled: true
 
   - name: askubuntu
     engine: stackexchange
@@ -2833,6 +2853,12 @@ engines:
     engine: naver
     shortcut: nvrv
     disabled: true
+
+  - name: neosearch
+    engine: neosearch
+    shortcut: neo
+    disabled: true
+    inactive: true
 
   - name: rubygems
     shortcut: rbg
