@@ -26,31 +26,30 @@ env:
 
 jobs:
   update:
-    if: github.event.workflow_run.conclusion == 'success' && github.repository_owner == 'searxng'
+    if: github.repository_owner == 'searxng' && github.event.workflow_run.conclusion == 'success'
     name: Update
-    runs-on: ubuntu-26.04-arm
+    runs-on: ubuntu-24.04-arm
     permissions:
       # For "make V=1 weblate.push.translations"
       contents: write
 
     steps:
       - name: Setup Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+        uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548  # v6.1.0
         with:
           python-version: "${{ env.PYTHON_VERSION }}"
 
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3  # v6.0.0
         with:
           token: "${{ secrets.WEBLATE_GITHUB_TOKEN }}"
           fetch-depth: "0"
 
       - name: Setup cache Python
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
         with:
           key: "python-${{ env.PYTHON_VERSION }}-${{ runner.arch }}-${{ hashFiles('./requirements*.txt') }}"
-          restore-keys: |
-            python-${{ env.PYTHON_VERSION }}-${{ runner.arch }}-
+          restore-keys: "python-${{ env.PYTHON_VERSION }}-${{ runner.arch }}-"
           path: "./local/"
 
       - name: Setup venv
@@ -59,7 +58,7 @@ jobs:
       - name: Setup Weblate
         run: |
           mkdir -p ~/.config
-          echo "${{ secrets.WEBLATE_CONFIG }}" >~/.config/weblate
+          echo "${{ secrets.WEBLATE_CONFIG }}" > ~/.config/weblate
 
       - name: Setup Git
         run: |
@@ -74,7 +73,7 @@ jobs:
       github.repository_owner == 'searxng'
       && (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule')
     name: Pull Request
-    runs-on: ubuntu-26.04-arm
+    runs-on: ubuntu-24.04-arm
     permissions:
       # For "make V=1 weblate.translations.commit"
       contents: write
@@ -83,22 +82,21 @@ jobs:
 
     steps:
       - name: Setup Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+        uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548  # v6.1.0
         with:
           python-version: "${{ env.PYTHON_VERSION }}"
 
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3  # v6.0.0
         with:
           token: "${{ secrets.WEBLATE_GITHUB_TOKEN }}"
           fetch-depth: "0"
 
       - name: Setup cache Python
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
         with:
           key: "python-${{ env.PYTHON_VERSION }}-${{ runner.arch }}-${{ hashFiles('./requirements*.txt') }}"
-          restore-keys: |
-            python-${{ env.PYTHON_VERSION }}-${{ runner.arch }}-
+          restore-keys: "python-${{ env.PYTHON_VERSION }}-${{ runner.arch }}-"
           path: "./local/"
 
       - name: Setup venv
@@ -107,7 +105,7 @@ jobs:
       - name: Setup Weblate
         run: |
           mkdir -p ~/.config
-          echo "${{ secrets.WEBLATE_CONFIG }}" >~/.config/weblate
+          echo "${{ secrets.WEBLATE_CONFIG }}" > ~/.config/weblate
 
       - name: Setup Git
         run: |
@@ -118,17 +116,23 @@ jobs:
         run: make V=1 weblate.translations.commit
 
       - name: Create PR
-        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1  # v8.1.1
+        id: cpr
+        uses: peter-evans/create-pull-request@84ae59a2cdc2258d6fa0732dd66352dddae2a412  # v7.0.9
         with:
           author: "searxng-bot <searxng-bot@users.noreply.github.com>"
           committer: "searxng-bot <searxng-bot@users.noreply.github.com>"
-          title: "[mod] i18n: update translations from Weblate"
-          commit-message: "[mod] i18n: update translations from Weblate"
+          title: "[l10n] update translations from Weblate"
+          commit-message: "[l10n] update translations from Weblate"
           branch: "translations_update"
           delete-branch: "true"
           draft: "false"
           signoff: "false"
           body: |
-            Update translations from Weblate
+            [l10n] update translations from Weblate
           labels: |
-            area:i18n
+            translation
+
+      - name: Display information
+        run: |
+          echo "Pull Request Number - ${{ steps.cpr.outputs.pull-request-number }}"
+          echo "Pull Request URL - ${{ steps.cpr.outputs.pull-request-url }}"
