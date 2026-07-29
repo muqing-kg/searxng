@@ -3296,6 +3296,14 @@ engines:
   #   brave_category: goggles
   #   Goggles: # required! This should be a URL ending in .goggle
 
+  - name: exaapi
+    engine: exaapi
+    shortcut: exa
+    api_key: ""
+    search_type: auto
+    content_mode: highlights
+    inactive: true
+
   - name: lib.rs
     shortcut: lrs
     engine: lib_rs
